@@ -65,6 +65,6 @@ memory:
     policy: GLOBAL_TWO_THRESHOLD
     tau_auto: 0.85
     m_min: 2
-    parameter_set_id: MEMORY_V0_NO_MIN_2026_10_31
+    parameter_set_id: CADENCE_MEMORY_ENGINE_NO_HISTORY_FLOOR
     calibration_id: null
     validation_fingerprint: null

@@ -121,5 +121,5 @@ def canonical_bytes(o: object) -> bytes:
 
 
 def sha256_canonical(o: object) -> str:
-    """对 canonical serializer 字节取 SHA-256 小写 64-hex（科研 hash 统一入口）。"""
+    """对 canonical serializer 字节取 SHA-256 小写 64-hex。"""
     return hashlib.sha256(canonical_bytes(o)).hexdigest()

@@ -11,8 +11,7 @@ from tools.cadence.callbacks import Completion
 
 _MAX_ATTEMPTS = 4
 _CALLBACK_ROLE = "cadence_gold_simulation"
-_PROMPT_VERSION = "cadence_gold_option_choice_v1"
-_ANSWER_MODE = "LLM_GOLD_OPTION_CHOICE_V1"
+_ANSWER_MODE = "LLM_GOLD_OPTION_CHOICE"
 
 
 class LLMGoldOracleError(ValueError):
@@ -111,7 +110,6 @@ class LLMGoldOptionOracle:
                         "option_id": option_id,
                         "attempt_count": attempt,
                         "last_retry_reason_code": retry_reason,
-                        "prompt_version": _PROMPT_VERSION,
                     }
             if attempt == _MAX_ATTEMPTS:
                 break

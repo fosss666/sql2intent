@@ -17,8 +17,8 @@ from cadence.sqlglot_ast_mapper import map_sqlite_group_concat_ast
 # 这些值无法产生确定性 canonical 数值字节，且语义上不是可排序的有限量。
 _NON_FINITE_NUMERIC_TEXTS: frozenset[str] = frozenset({"NaN", "Infinity", "-Infinity"})
 
-# DATE cast 的规范化形状：YYYY-MM-DD。无法唯一识别的日期字符串（如 01/02/2026）
-# 一律 BoundUnsupported，不在本层猜测区域格式。
+# DATE cast 只使用规范化后的 YYYY-MM-DD；不明确的斜线日期字符串一律
+# BoundUnsupported，不在本层猜测区域格式。
 # TIMESTAMP cast 的规范化形状：YYYY-MM-DD[ T]HH:MM[:SS[.fff]]。
 
 SQL_PARSE_FAILED = "SQL_PARSE_FAILED"
@@ -2004,7 +2004,7 @@ class _Binder:
         if isinstance(node, exp.Subquery):
             return self._scalar_avg_subquery(node)
         if isinstance(node, exp.Literal):
-            # 字面量分类（C1 收窄）：字符串走 STRING；数值按是否含小数点区分
+            # 字面量分类：字符串走 STRING；数值按是否含小数点区分
             # INTEGER / DECIMAL。sqlglot 把数值存为原始文本字符串，保留以保
             # canonical 确定性（不在本层做尾随零规范化——那是 typed producer 职责）。
             if node.is_string:
@@ -2105,17 +2105,17 @@ class _Binder:
     def _cast_to_literal(self, node: exp.Cast) -> BoundExpr:
         """CAST 规范化：把字面量 cast 收窄为 typed literal；其余 fail-closed。
 
-        科研语义边界：
+        处理边界：
         - 本层只做"类型标签规范化"（Cast 节点 -> BoundLiteral 的 typed_tag），
           不校验日期/时间字符串是否合法——非法值（如 CAST('abc' AS DATE)）
           须送达 DuckDB 执行层由其裁决为 EXECUTION_ERROR，而非在绑定层
-          短路为 UNSUPPORTED_AST（与 T0 fixture raw-6 的人工 expected 一致）。
+          短路为 UNSUPPORTED_AST。
         - DATE / TIMESTAMP：内层为 STRING 字面量即收窄为 DATE/TIMESTAMP typed
           literal，canonical 保留 sqlglot 原始文本（不自行格式化日期）。
         - DECIMAL / DOUBLE / FLOAT：内层数值字面量 -> DECIMAL；内层为
           NaN/Infinity 文本 -> BoundUnsupported（非有限数值不产生 canonical 字节）。
-        - 内层是 Column（如 CAST(amount AS VARCHAR)）：超出 C1 绑定域 -> UNSUPPORTED。
-        - TIMESTAMPTZ / VARCHAR / TEXT / INTERVAL 等目标类型：超出 C1 绑定域 -> UNSUPPORTED。
+        - 内层是 Column（如 CAST(amount AS VARCHAR)）：当前绑定层不支持。
+        - TIMESTAMPTZ / VARCHAR / TEXT / INTERVAL 等目标类型：当前绑定层不支持。
         """
         to_type = node.to
         target = to_type.this if isinstance(to_type, exp.DataType) else None
@@ -2171,10 +2171,10 @@ class _Binder:
                 "CAST_NUMERIC_INVALID", "数值 cast 内层非数值字面量或非有限值"
             )
 
-        # TIMESTAMPTZ / VARCHAR / TEXT / INTERVAL 等超 C1 绑定域类型。
+        # TIMESTAMPTZ / VARCHAR / TEXT / INTERVAL 等当前不支持的目标类型。
         return BoundUnsupported(
             f"CAST_{target.name if target else 'UNKNOWN'}",
-            f"CAST 目标类型超出 C1 绑定域: {target}",
+            f"CAST 目标类型不受支持: {target}",
         )
 
     def _window(self, node: exp.Window) -> BoundExpr:
@@ -3192,7 +3192,7 @@ def canonical_sql_bytes(bound: BoundQuery) -> bytes:
 
     普通单 SELECT 延续既有 bound-IR 字节，避免 successor 因 query-tree 子域
     拒绝旧版可消费的谓词；集合分支、derived table 和嵌套查询则使用闭合 tree
-    记录完整 scope。简单 SELECT 的新 LIMIT/OFFSET 仅在声明时显式加入 legacy 形态。
+    记录完整 scope。简单 SELECT 的新 LIMIT/OFFSET 仅在声明时显式加入兼容形态。
     """
     if (
         _supports_query_tree(bound.query_contract)
@@ -3400,7 +3400,7 @@ def _bound_to_canonical(
 
 
 # ---------------------------------------------------------------------------
-# 只读遍历与列收集（C1 新增公共接口）
+# 只读遍历与列收集
 # ---------------------------------------------------------------------------
 def walk_bound_expr(expr: BoundExpr) -> Iterator[BoundExpr]:
     """只读深度优先遍历 BoundExpr 树，产出含根在内的所有节点。
@@ -3412,9 +3412,7 @@ def walk_bound_expr(expr: BoundExpr) -> Iterator[BoundExpr]:
     projections[*].expr、where、
     joins[*].on、group_by[*]、order_by[*].expr、ctes[*] 等入口进入。
 
-    科研语义：本函数是只读遍历，不修改节点、不生成 SQL、不做类型推断；
-    供因子投影（C2/C3）与列收集复用。execution_adjudicator._has_unsupported
-    目前仍为独立手写栈递归（预存实现，后续迭代可迁移到本接口）。
+    本函数只读遍历，不修改节点、不生成 SQL、不做类型推断；表达式检查与列收集共用此入口。
     """
     yield expr
     if isinstance(expr, BoundFunc):

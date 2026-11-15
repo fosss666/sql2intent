@@ -1,7 +1,7 @@
 """偏好记忆事件、参数、范围与动作类型。
 
 本模块是独立记忆核心的唯一类型来源。事件保存显式反馈证据；缺字段、未知字段、
-无效准入或候选映射不唯一时拒绝，不推断缺失的科研语义。
+无效准入或候选映射不唯一时拒绝，不猜测缺失含义。
 """
 
 from __future__ import annotations
@@ -18,11 +18,13 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _RFC3339_UTC = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$"
 )
-_LEGACY_PARAMETER_SET_ID = "MEMORY_V0_INITIAL_2026_10_31"
-_INITIAL_PARAMETER_SET_ID = "MEMORY_V0_NO_MIN_2026_10_31"
+_ENGINE_WITH_HISTORY_FLOOR_PARAMETER_SET_ID = (
+    "CADENCE_MEMORY_ENGINE_WITH_HISTORY_FLOOR"
+)
+_ENGINE_NO_HISTORY_FLOOR_PARAMETER_SET_ID = "CADENCE_MEMORY_ENGINE_NO_HISTORY_FLOOR"
 _FIXED_SEMANTIC_TOP_K = 20
-_INITIAL_PARAMETERS = (0.75, 30.0, None, 0.85, _FIXED_SEMANTIC_TOP_K)
-_LEGACY_PARAMETERS = (0.75, 30.0, 2.0, 0.85, _FIXED_SEMANTIC_TOP_K)
+_NO_HISTORY_FLOOR_PARAMETERS = (0.75, 30.0, None, 0.85, _FIXED_SEMANTIC_TOP_K)
+_HISTORY_FLOOR_PARAMETERS = (0.75, 30.0, 2.0, 0.85, _FIXED_SEMANTIC_TOP_K)
 _FIXED_MIN_EFFECTIVE_HISTORY = 2.0
 _EVENT_KEYS = {
     "schema_version",
@@ -181,7 +183,7 @@ class MemoryConfig:
     tau_auto: float
     semantic_top_k: int = _FIXED_SEMANTIC_TOP_K
     # 参数集标识参与 decision ID，避免不同阈值配置产生相同的决策身份。
-    parameter_set_id: str = _LEGACY_PARAMETER_SET_ID
+    parameter_set_id: str = _ENGINE_WITH_HISTORY_FLOOR_PARAMETER_SET_ID
     calibration_id: str | None = None
     validation_fingerprint: str | None = None
 
@@ -218,19 +220,19 @@ class MemoryConfig:
             self.tau_auto,
             self.semantic_top_k,
         )
-        if self.parameter_set_id == _INITIAL_PARAMETER_SET_ID:
-            if values != _INITIAL_PARAMETERS or any(
+        if self.parameter_set_id == _ENGINE_NO_HISTORY_FLOOR_PARAMETER_SET_ID:
+            if values != _NO_HISTORY_FLOOR_PARAMETERS or any(
                 item is not None for item in (self.calibration_id, self.validation_fingerprint)
             ):
                 raise PreferenceMemoryError(
-                    "MEMORY_CONFIG_INVALID", "initial parameter set mismatch"
+                    "MEMORY_CONFIG_INVALID", "memory parameter set mismatch"
                 )
-        elif self.parameter_set_id == _LEGACY_PARAMETER_SET_ID:
-            if values != _LEGACY_PARAMETERS or any(
+        elif self.parameter_set_id == _ENGINE_WITH_HISTORY_FLOOR_PARAMETER_SET_ID:
+            if values != _HISTORY_FLOOR_PARAMETERS or any(
                 item is not None for item in (self.calibration_id, self.validation_fingerprint)
             ):
                 raise PreferenceMemoryError(
-                    "MEMORY_CONFIG_INVALID", "legacy parameter set mismatch"
+                    "MEMORY_CONFIG_INVALID", "memory parameter set mismatch"
                 )
         elif (
             not isinstance(self.calibration_id, str)

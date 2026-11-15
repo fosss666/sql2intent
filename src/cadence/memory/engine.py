@@ -162,7 +162,7 @@ class MemoryEngine:
         ):
             raise PreferenceMemoryError("MEMORY_QUERY_INVALID")
         # CADENCE 的 key 是封闭枚举 root type；自然语言 alias 会将
-        # PREDICATE 等科研类型合并，破坏“同一 semantic root type”的检索边界。
+        # PREDICATE 等根类型不能合并，否则会放宽“同一 semantic root type”的检索范围。
         query_key = (
             query_ambiguity_key
             if require_cadence_option_set

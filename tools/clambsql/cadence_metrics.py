@@ -304,7 +304,7 @@ def build_cadence_metrics(
         "schema_entity_metrics": {
             "scorer": (
                 "local SQLGlot table/column-name set scorer; "
-                "legacy scorer source unavailable"
+                "reference scorer source unavailable"
             ),
             "all_found": "gold entity set is a subset of predicted entity set",
             "sql_parse_failure_count": schema_sql_parse_failures,
